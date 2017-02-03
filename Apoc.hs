@@ -103,7 +103,20 @@ startNextTurn boardState = do
 
 getInput :: IO String
 getInput = getLine 
-  
+
+--Could also GameState -> Bool, and extract data from the structure that is GameState	
+--Basically the @ function assigns a name to a specific part of a bigger data type
+--as below player is the name, whitePlayed is the data type inside GameState
+--So, we're extracting the data from whitePlayed which is type Played and we only care about 
+--the second tuple in the pair of tuples, and thus have named it s@ second tuble values
+--It's unfinished at the moment as I wasn't sure of the format we as a group wanted to follow.
+--Basically, options are GameState ->Bool, and extract the data, or
+--GameState -> PlayType -> Player -> Played -> Bool
+--I'm leaning extracting the data though, as that makes it more useful.
+isValid :: GameState -> PlayType -> Player -> Played -> Bool
+isValid GameState{theBoard = nBoard, whitePlayed = player@(Played (_, s@(d,3)) } Normal White move =
+
+
 ---2D list utility functions-------------------------------------------------------
 
 -- | Replaces the nth element in a row with a new element.
