@@ -113,8 +113,12 @@ getInput = getLine
 --Basically, options are GameState ->Bool, and extract the data, or
 --GameState -> PlayType -> Player -> Played -> Bool
 --I'm leaning extracting the data though, as that makes it more useful.
-isValid :: GameState -> PlayType -> Player -> Played -> Bool
-isValid GameState{theBoard = nBoard, whitePlayed = player@(Played (_, s@(d,3)) } Normal White move =
+--isValid :: GameState -> PlayType -> Player -> Played -> Bool
+isValid :: GameState -> PlayType -> Bool
+isValid GameState{theBoard = nBoard, whitePlayed = wPlayer@(Played (srcW@(x,y), dstW@(xW,yW+1)))||
+                  blackPlayed = bPlayer@(Played (srcB@(xB,yB), dstB(xB,yB -1))) } Normal move = if getFromBoard nBoard dstW || dstB == "_" 
+                                                                                         then True
+                                                                                         else False
 
 
 ---2D list utility functions-------------------------------------------------------
