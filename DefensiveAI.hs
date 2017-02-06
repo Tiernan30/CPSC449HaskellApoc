@@ -17,6 +17,14 @@ defAI :: Chooser
 defAI b Normal        c = return (Just [(0,0),(0,0)])
 defAI b PawnPlacement c = return (Just [(0,0)])
 
+--THESE FUNCTIONS IMPORTANT
+--List Comprehension methods that generate moves that can be made within a 5 x 5 grid for the respective pieces
+knightMove = (\a b -> [(a + x, b + y) | x <- [(-2), (-1), 1, 2], y <- [(-2), (-1), 1, 2], ((abs x) + (abs y) == 3), a + x >= 0, b + y >= 0, (a + x) < 5, (b + y) < 5])
+bPawnSideMove = (\a b -> [(a+x, b+y) | y <- [(-1)], x <- [(-1), 1], a + x < 5, a + x > (-1), b + y < 5, b + y > (-1)])
+wPawnSideMove = (\a b -> [(a+x, b+y) | y <- [1], x <- [(-1), 1], a + x < 5, a + x > (-1), b + y < 5, b + y > (-1)])
+bPawnFrontMove = (\a b -> [(a, b+y) | y <- [(-1)], b + y < 5, b + y > (-1)])
+wPawnFrontMove = (\a b -> [(a, b+y) | y <- [1], b + y < 5, b + y > (-1)])
+
 
 --normalDecision :: GameState -> Player -> [(Int, Int)]
 --normalDecision 
@@ -57,36 +65,42 @@ knightCountW row = foldl (\acc x -> if x == WK
 --safeMoveW :: Player -> [Cell] -> [(Int, Int)]
 --safeMoveW c row = foldl (\acc x -> 
 
---moveRange :: [[Cell]] -> Cell -> (Int, Int) -> [(Int, Int)]
---moveRange board BK (x, y) = moveRangeBK
---moveRange board WK (x, y) = moveRangeWK
---moveRange board WP (x, y) = moveRangeWP
---moveRange board BP (x, y) = moveRangeBP
---moveRange board E  (x, y) = NOTHING
+piecesInDanger :: [[Cell]] -> Player -> [(Cell, (Int, Int))]
+piecesInDanger b White = (trackPieces (makeCoorBoard b) White)
+piecesInDanger b Black = (trackPieces (makeCoorBoard b) Black)
 
-moveRangeK :: Player -> [[Cell]] -> (Int, Int) -> [(Int, Int)]
-moveRangeK color board (a, b) = 
+--inDanger :: [[Cell]] -> Player -> (Int, Int) -> Bool
+--inDanger b White pos =
+--inDanger b Black pos = 
+
+makeCoorBoard :: [[Cell]] -> [[(Cell, (Int, Int))]]
+makeCoorBoard b = foldr (\x acc -> (makeCoorBoardR x (4 - length acc)) : acc) [] b 
+
+makeCoorBoardR :: [Cell] -> Int -> [(Cell, (Int, Int))]
+makeCoorBoardR row rowNum = foldr (\x acc -> (x , (4 - length acc, rowNum)) : acc ) [] row
+
+trackPieces :: [[(Cell, (Int, Int))]] -> Player -> [(Cell, (Int, Int))]
+trackPieces b c = foldr (\x acc -> (trackPiecesI x c) ++ acc) [] b
+
+trackPiecesI :: [(Cell, (Int, Int))] -> Player -> [(Cell, (Int, Int))]
+trackPiecesI row c = foldr (\(piece, (x,y)) acc -> if sameTeam piece c 
+                                                         then (piece, (x,y)) : acc
+                                                         else acc) [] row
+
+moveRangeK :: [[Cell]] -> Player -> (Int, Int) -> [(Int, Int)]
+moveRangeK board color (a, b) = 
    delInvalMovesK 
    (board) 
    (color) 
-   ([(a + x, b + y) | x <- [(-2), (-1), 1, 2], y <- [(-2), (-1), 1, 2], ((abs x) + (abs y) == 3), a + x >= 0, b + y >= 0, (a + x) < 5, (b + y) < 5])
+   (knightMove a b)
                                         
-
 moveRangeP :: [[Cell]] -> Player -> (Int, Int) -> [(Int, Int)]
 moveRangeP board Black (a, b) = 
- (validSideM (board)
-            (Black)
-            ([(a+x, b+y) | y <- [(-1)], x <- [(-1), 1], a + x < 5, a + x > (-1), b + y < 5, b + y > (-1)])) ++
- (validFrontM (board)
-             (Black)
-             ([(a, b+y) | y <- [(-1)], b + y < 5, b + y > (-1)]))
+    (validSideM (board) (Black) (bPawnSideMove a b)) ++
+    (validFrontM (board) (Black) (bPawnFrontMove a b))
 moveRangeP board White (a, b) = 
- (validSideM (board)
-             (White)
-             ([(a+x, b+y) | y <- [1], x <- [(-1), 1], a + x < 5, a + x > (-1), b + y < 5, b + y > (-1)])) ++
- (validFrontM (board)
-             (White)
-             ([(a, b+y) | y <- [1], b + y < 5, b + y > (-1)]))
+    (validSideM (board) (White) (wPawnSideMove a b)) ++
+    (validFrontM (board) (White) (wPawnFrontMove a b))
 
 sameTeam :: Cell -> Player -> Bool
 sameTeam WK White = True
