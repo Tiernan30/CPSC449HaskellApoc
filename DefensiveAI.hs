@@ -7,8 +7,14 @@ import System.IO.Unsafe
 import System.Random
    
 defAI :: Chooser
-defAI b Normal        c = return (Just (decideMove (theBoard b) c))
-defAI b PawnPlacement c = return (Just (placePawn b c))
+defAI b Normal        c = return (returnIOMove (decideMove (theBoard b) c))
+defAI b PawnPlacement c = return (returnIOMove (placePawn  (theBoard b) c))
+
+
+returnIOMove :: [(Int,Int)] -> (Maybe [(Int,Int)])
+returnIOMove [] = Nothing
+returnIOMove c  = Just c
+
 
 --Main decision tree for Normal moves
 
@@ -53,7 +59,7 @@ normalMove b c = pawnCaptK (getPawnCoords (trackMoveableP (makeCoorBoard b) b c)
 
 --Last remaining move
 moveToEmpty :: [(Cell, (Int, Int))] -> [[Cell]] -> Player -> Int -> [(Int, Int)]
-moveToEmpty [] b c index = [(0,0)]
+moveToEmpty [] b c index = []
 moveToEmpty bc b c index = if (fst (bc !! index) == WP || fst (bc !! index) == BP)
                            then (snd (bc !! index)) : (((moveRangeP b c (snd (bc !! index)))) !! 0) : []
                            else (snd (bc !! index)) : (((moveRangeK b c (snd (bc !! index)))) !! 0) : []
