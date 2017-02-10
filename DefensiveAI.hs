@@ -5,35 +5,83 @@ module DefensiveAI (
 import ApocTools
 import System.IO.Unsafe
 import System.Random
-    
---Priority for this AI is to optimize defensive plays
---Will trade weaker piece for a chance to take a knight (when pawns are above 2)
---Will prioritize saving pawns when 2 or under
---Never upgrades pawn to knight when pawns are at 1
---Have to analyze the board
---Importance on opponents positions
-
---Needs to take the board as an arg generate a move
+   
 defAI :: Chooser
-defAI b Normal        c = return (Just [(0,0),(0,0)])
+defAI b Normal        c = return (Just (decideMove (theBoard b) c))
 defAI b PawnPlacement c = return (Just [(0,0)])
 
---DECISION TREE FOR AI
---------------   Board     Player   Pawns  Knights   Returns Coordinate
---decideMoveN :: [[Cell]] -> Player -> Int -> Int -> [(Int, Int)]
---decideMoveN b c 1 _ = if safeOfPawn
---decideMoveN b c _ _ = --NORMAL DEFENSIVE PLAY
+--Main decision tree for Normal moves
 
+decideMove :: [[Cell]] -> Player -> [(Int, Int)]
+decideMove b c 
+    | (pawnCount c b) == 1 = safetyOfPawn b c (piecesInDanger b c)
+    | otherwise            = normalDMove b c (piecesInDanger b c)
+
+--Safety of Pawn    
+safetyOfPawn :: [[Cell]] -> Player -> [(Cell, (Int, Int))] -> [(Int, Int)]
+safetyOfPawn b c (x:xs) = if (fst x == WP || fst x == BP)
+                          then findEndangeredLP (x:xs) c : (selectMoveP (moveRangeP b c (findEndangeredLP (x:xs) c)) b) :[]
+                          else safetyOfPawn b c xs 
+safetyOfPawn b c []     = normalDMove b c (piecesInDanger b c)
+
+--Locate Last endangered pawn if it can move
+findEndangeredLP :: [(Cell, (Int, Int))] -> Player -> (Int, Int)
+findEndangeredLP (x:xs) White = if fst x == WP
+                                then snd x
+                                else (findEndangeredLP xs White)
+findEndangeredLP (x:xs) Black = if fst x == BP
+                                then snd x
+                                else (findEndangeredLP xs Black)
+                                
+selectMoveP :: [(Int, Int)] -> [[Cell]] -> (Int, Int)
+selectMoveP list board 
+    | length list == 1 = list !! 0
+    | otherwise = pickKillingMove list board
+    
+
+--Normal defensive move
 normalDMove :: [[Cell]] -> Player -> [(Cell, (Int, Int))] -> [(Int, Int)]
 normalDMove b c []   = normalMove b c
 normalDMove b c list = if findKnightInDanger list == []
-                       then selNMovePawnID list b c (unsafePerformIO (randomRIO(0, ((length list)-1))))
+                       then selNMovePawnID (removeMoveless list b c) b c (unsafePerformIO (randomRIO(0, ((length list)-1))))
                        else selNMoveKnightID b c list (unsafePerformIO (randomRIO(0, 1)))
-                       
-normalMove :: [[Cell]] -> Player -> [(Int, Int)]
-normalMove b c = --Gotta Find normal 
-            
 
+normalMove :: [[Cell]] -> Player -> [(Int, Int)]
+normalMove b c = pawnCaptK (getPawnCoords (trackMoveableP (makeCoorBoard b) b c)) b c
+----------------knight check
+----------------No moves so pass
+
+--Last remaining move
+moveToEmpty :: [(Cell, (Int, Int))] -> [[Cell]] -> Player -> Int -> [(Int, Int)]
+moveToEmpty [] b c index = [(0,0)]
+moveToEmpty bc b c index = if (fst (bc !! index) == WP || fst (bc !! index) == BP)
+                           then (snd (bc !! index)) : (((moveRangeP b c (snd (bc !! index)))) !! 0) : []
+                           else (snd (bc !! index)) : (((moveRangeK b c (snd (bc !! index)))) !! 0) : []
+
+--Move Options
+pawnCaptK :: [(Int, Int)] -> [[Cell]] -> Player -> [(Int, Int)]
+pawnCaptK [] b c     = knightCaptPiece (getKnightCoords (trackMoveableP (makeCoorBoard b) b c)) b c
+pawnCaptK (x:xs) b c = if knightKillable (moveRangeP b c x) b 
+                       then x : (findKnightKill (moveRangeP b c x) b) : []
+                       else pawnCaptK xs b c
+                       
+knightCaptPiece :: [(Int, Int)] -> [[Cell]] -> Player -> [(Int, Int)]
+knightCaptPiece [] b c     = moveToEmpty (trackMoveableP (makeCoorBoard b) b c) b c (unsafePerformIO (randomRIO (0, ((length (trackMoveableP (makeCoorBoard b) b c)) - 1))))
+knightCaptPiece (x:xs) b c = if captureMoveExist (moveRangeK b c x) b
+                             then x : (findPawnKill (moveRangeK b c x) b) : [] 
+                             else knightCaptPiece xs b c
+                       
+                       
+removeMoveless :: [(Cell, (Int, Int))] -> [[Cell]] -> Player -> [(Cell, (Int, Int))]
+removeMoveless bc b c = foldr (\x acc -> if (fst x == BP || fst x == WP)
+                                         then if (moveRangeP b c (snd x)) == []
+                                              then acc
+                                              else x : acc
+                                         else if (moveRangeK b c (snd x)) == []
+                                              then acc
+                                              else x : acc) [] bc
+
+--Functions that move pieces that are in danger. Called primarily by normalDMove
 selNMovePawnID :: [(Cell, (Int, Int))] -> [[Cell]] -> Player -> Int -> [(Int, Int)]
 selNMovePawnID coorB b c pIndex
       | length coorB == 1 = snd (coorB !! 0) : movePawnID b (moveRangeP b c (snd (coorB !! 0))) : []
@@ -60,33 +108,9 @@ moveKnightID b list = if captureMoveExistR list b (unsafePerformIO (randomRIO (0
                       else moveKnightR list
 
 moveKnightR :: [(Int, Int)] -> (Int, Int)
-moveKnightR movelist = movelist !! unsafePerformIO(randomRIO(0,(length movelist)))
-
-
---selectPawnID :: [(Cell, (Int, Int))] -> (Int, Int)
---movePawnID :: [[Cell]] -> Player -> (Int, Int)
+moveKnightR movelist = movelist !! unsafePerformIO(randomRIO(0,((length movelist)-1)))
 
 --Passed in with Pawns in danger.
-safetyOfPawn :: [[Cell]] -> Player -> [(Cell, (Int, Int))] -> [(Int, Int)]
-safetyOfPawn b c (x:xs) = if (fst x == WP || fst x == BP)
-                          then findEndangeredLP (x:xs) c : (selectMoveP (moveRangeP b c (findEndangeredLP (x:xs) c)) b) :[]
-                          else safetyOfPawn b c xs 
-safetyOfPawn b c []     = normalDMove b c (piecesInDanger b c)
-
-
-
-findEndangeredLP :: [(Cell, (Int, Int))] -> Player -> (Int, Int)
-findEndangeredLP (x:xs) White = if fst x == WP
-                                then snd x
-                                else (findEndangeredLP xs White)
-findEndangeredLP (x:xs) Black = if fst x == BP
-                                then snd x
-                                else (findEndangeredLP xs Black)
-                                
-selectMoveP :: [(Int, Int)] -> [[Cell]] -> (Int, Int)
-selectMoveP list board 
-    | length list == 1 = list !! 0
-    | otherwise = pickKillingMove list board
 
 captureMoveExist :: [(Int, Int)] -> [[Cell]] -> Bool
 captureMoveExist [] b     = False
@@ -121,33 +145,7 @@ knightKillable :: [(Int, Int)] -> [[Cell]] -> Bool
 knightKillable list b = foldl (\acc x -> if (getFromBoard b x == WK || getFromBoard b x == BK)
                                          then True
                                          else acc) False list
-                                         
---getEnemyKnights :: [[Cell]] -> [(Cell, (Int, Int))] -> Player -> [(Int, Int)]
---getEnemyKnights board enemyPieces White = 
---getEnemyKnights board enemyPieces Black = 
---analysis :: [[Cell]] -> Player -> [(Int, Int)]
---analysis b c = if (piecesInDanger b c) == []
---               then captOpps b c
---               else safetyOfPawn b c (piecesInDanger b c)
-
-
---TEST BOARDS
-d               :: GameState
-d                = GameState Init 0 Init 0
-                  [ [WK, WP, WP, WP, WK],
-                    [WP, E , E , E , WP],
-                    [E , E , E , E , E ],
-                    [E , E , E , E , BP ],
-                    [E , E , BK, E , E ]]
-
-
-c               :: GameState
-c               = GameState Init 0 Init 0
-                  [ [WK, WP, WP, WP, WP],
-                    [WP, E , BP, E , WP],
-                    [E , E , E , E , E ],
-                    [E , E , E , E , E ],
-                    [E , E , E , E , BP]]
+                                        
 
 --THESE FUNCTIONS IMPORTANT
 --List Comprehension methods that generate moves that can be made within a 5 x 5 grid for the respective pieces
@@ -185,10 +183,21 @@ knightCountW row = foldl (\acc x -> if x == WK
                                     then 1 + acc
                                     else 0 + acc) 0 row
 
+--Takes in trackPieces argument
+getPawnCoords :: [(Cell, (Int, Int))] -> [(Int, Int)]
+getPawnCoords bc = foldl (\acc x -> if (fst x == BP || fst x == WP)
+                                    then snd x : acc
+                                    else acc) [] bc
+                                    
+getKnightCoords :: [(Cell, (Int, Int))] -> [(Int, Int)]
+getKnightCoords bc = foldl (\acc x -> if (fst x == WK || fst x == BK)
+                                      then snd x : acc
+                                      else acc) [] bc
+
 
 piecesInDanger :: [[Cell]] -> Player -> [(Cell, (Int, Int))]
-piecesInDanger b White = pieceInDanger b (trackPieces (makeCoorBoard b) White) White
-piecesInDanger b Black = pieceInDanger b (trackPieces (makeCoorBoard b) Black) Black
+piecesInDanger b White = pieceInDanger b (trackMoveableP (makeCoorBoard b) b White) White
+piecesInDanger b Black = pieceInDanger b (trackMoveableP (makeCoorBoard b) b Black) Black
 
 pieceInDanger :: [[Cell]] -> [(Cell, (Int, Int))] ->  Player -> [(Cell, (Int, Int))]
 pieceInDanger b bc Black = foldl (\acc x -> if (pieceCapturedBy (moveRangeK b Black (snd x)) WK b Black) || (pieceCapturedBy (moveRangeP b Black (snd x)) WP b Black)
@@ -222,19 +231,25 @@ isEnemyPawn WP Black = True
 isEnemyPawn BP White = True
 isEnemyPawn _ _      = False
 
-makeCoorBoard :: [[Cell]] -> [[(Cell, (Int, Int))]]
-makeCoorBoard b = foldr (\x acc -> (makeCoorBoardR x (4 - length acc)) : acc) [] b 
+makeCoorBoard :: [[Cell]] -> [(Cell, (Int, Int))]
+makeCoorBoard b = foldr (\x acc -> (makeCoorBoardR x (4 - (quot (length acc) 5))) ++ acc) [] b 
 
 makeCoorBoardR :: [Cell] -> Int -> [(Cell, (Int, Int))]
 makeCoorBoardR row rowNum = foldr (\x acc -> (x , (4 - length acc, rowNum)) : acc ) [] row
 
-trackPieces :: [[(Cell, (Int, Int))]] -> Player -> [(Cell, (Int, Int))]
-trackPieces b c = foldr (\x acc -> (trackPiecesI x c) ++ acc) [] b
+trackMoveableP :: [(Cell, (Int, Int))] -> [[Cell]] -> Player -> [(Cell, (Int, Int))]
+trackMoveableP bc b c = removeMoveless (trackPieces bc c) b c
 
-trackPiecesI :: [(Cell, (Int, Int))] -> Player -> [(Cell, (Int, Int))]
-trackPiecesI row c = foldr (\(piece, (x,y)) acc -> if sameTeam piece c 
-                                                   then (piece, (x,y)) : acc
-                                                   else acc) [] row
+trackPieces :: [(Cell, (Int, Int))] -> Player -> [(Cell, (Int, Int))]
+trackPieces row c = foldr (\(piece, (x,y)) acc -> if sameTeam piece c 
+                                                then (piece, (x,y)) : acc
+                                                else acc) [] row
+
+trackEmpty :: [(Cell, (Int, Int))] -> [(Int, Int)]
+trackEmpty bc = foldr (\x acc -> if (fst x) == E
+                                 then (snd x) : acc
+                                 else acc) [] bc
+
 
 moveRangeK :: [[Cell]] -> Player -> (Int, Int) -> [(Int, Int)]
 moveRangeK board color (a, b) = 
@@ -280,3 +295,27 @@ validFrontM :: [[Cell]] -> Player -> [(Int, Int)] -> [(Int, Int)]
 validFrontM b c moveList = foldl (\acc x -> if (getFromBoard b x) == E
                                             then x : acc
                                             else acc) [] moveList
+                                            
+--Pawn Placement decision tree
+placePawn :: [[Cell]] -> Player -> [(Int,Int)]
+placePawn b c = getSafeSpot b c (removeEnds (trackEmpty (makeCoorBoard b)) c)
+
+getSafeSpot :: [[Cell]] -> Player -> [(Int, Int)] -> [(Int, Int)]
+getSafeSpot b c []         = selRandomly (removeEnds (trackEmpty (makeCoorBoard b)) c)
+getSafeSpot b White (x:xs) = if (captureMoveExist (moveRangeK b Black x) b || captureMoveExist (moveRangeP b Black x) b)
+                              then getSafeSpot b White xs
+                              else x: []
+getSafeSpot b Black (x:xs) = if (captureMoveExist (moveRangeK b White x) b || captureMoveExist (moveRangeP b White x) b)
+                              then getSafeSpot b Black xs
+                              else x: []
+                              
+selRandomly :: [(Int, Int)] -> [(Int, Int)]
+selRandomly list =  list !! (unsafePerformIO(randomRIO(0, ((length list)-1) ))):[]
+
+removeEnds :: [(Int, Int)] -> Player -> [(Int, Int)]
+removeEnds coords White = foldr (\x acc -> if (snd x == 0)
+                                           then acc
+                                           else x : acc) [] coords
+removeEnds coords Black = foldr (\x acc -> if (snd x == 0)
+                                           then acc
+                                           else x : acc) [] coords
