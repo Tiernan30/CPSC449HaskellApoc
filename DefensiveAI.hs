@@ -8,7 +8,7 @@ import System.Random
    
 defAI :: Chooser
 defAI b Normal        c = return (Just (decideMove (theBoard b) c))
-defAI b PawnPlacement c = return (Just [(0,0)])
+defAI b PawnPlacement c = return (Just (placePawn b c))
 
 --Main decision tree for Normal moves
 
