@@ -1,4 +1,4 @@
-module AIFunction(
+module ApocFunction(
   decideMove, 
   safetyOfPawn, findEndangeredLP, selectMoveP,
   normalMove, pawnCaptK,
