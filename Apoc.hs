@@ -21,7 +21,7 @@ Feel free to modify this file as you see fit.
 
 module Main (
       -- * Main
-      main, main',
+      main, interactiveMode,
       -- * Utility functions
       replace, replace2
       ) where
@@ -31,91 +31,86 @@ import System.Environment
 import System.IO.Unsafe
 import ApocTools
 import ApocStrategyHuman
+import DefensiveAI
 
 
 ---Main-------------------------------------------------------------
 
 -- | The main entry, which just calls 'main'' with the command line arguments.
-main = main' (unsafePerformIO getArgs)
+
+main :: IO ()
+main = interactiveMode (unsafePerformIO getArgs)
 
 {- | We have a main' IO function so that we can either:
 
      1. call our program from GHCi in the usual way
      2. run from the command line by calling this function with the value from (getArgs)
 -}
-main'           :: [String] -> IO()
-main' args = do
-    putStrLn "\nThe initial board:"
-    print initBoard
 
-    putStrLn $ "\nThe initial board with back human (the placeholder for human) strategy having played one move\n"
-               ++ "(clearly illegal as we must play in rounds!):"
-    move <- human (initBoard) Normal Black
-    putStrLn (show $ GameState (if move==Nothing
-                                then Passed
-                                else Played (head (fromJust move), head (tail (fromJust move))))
-                               (blackPen initBoard)
-                               (Passed)
-                               (whitePen initBoard)
-                               (replace2 (replace2 (theBoard initBoard)
-                                                   ((fromJust move) !! 1)
-                                                   (getFromBoard (theBoard initBoard) ((fromJust move) !! 0)))
-                                         ((fromJust move) !! 0)
-                                         E))
-    newBoard <- return (GameState (if move==Nothing
-                                then Passed
-                                else Played (head (fromJust move), head (tail (fromJust move))))
-                               (blackPen initBoard)
-                               (Passed)
-                               (whitePen initBoard)
-                               (replace2 (replace2 (theBoard initBoard)
-                                                   ((fromJust move) !! 1)
-                                                   (getFromBoard (theBoard initBoard) ((fromJust move) !! 0)))
-                                         ((fromJust move) !! 0)
-                                         E))
-   
-    startNextTurn newBoard
+interactiveMode :: [String] -> IO()
+interactiveMode args 
+    | args == []         = do
+                           putStrLn "---------------------------------Launching Interactive Mode---------------------------------"
+                           putStr "Apocalypse is a chess variant game that is played on a 5x5 board, each player starts with 2 knights and 5 pawns. "
+                           putStr "Players move at the same time each turn. If two knights try to take one another, then the knights both simultaneously "
+                           putStr "move to where the previous knights were. If in the case where two pieces move to the same spot then the special rules apply. "
+                           putStr "If two knights collide, both knights are taken. The same happens for two pawns. If a collision between a knight and a "
+                           putStrLn "pawn occur then the knight trumps and the pawn is captured."
+                           putStr "The following strategies are available to be loaded in for play (strategies must be entered as displayed below) : \n"
+                           putStrLn "  human"
+                           putStrLn "  defensive"
+                           putStrLn "Please choose a strategy for black player"
+                           bStrat <- getLine
+                           putStrLn "Please choose a strategy for white player"
+                           wStrat <- getLine
+                           if (checkStrategy wStrat) && (checkStrategy bStrat)
+                           then nextStage initBoard (parseStrategy bStrat) (parseStrategy wStrat)
+                           else putStrLn "Invalid strategies selected, please select from the following: \n  human \n  defensive"                    
+                           
+    | (length args) == 2 = do 
+                           let wStrat = (args !! 0)
+                           let bStrat = (args !! 1)
+                           if (checkStrategy wStrat) && (checkStrategy bStrat)
+                           then nextStage initBoard (parseStrategy bStrat) (parseStrategy wStrat)
+                           else putStrLn "Invalid strategies selected, please select from the following: \n  human \n  defensive"  
+                           
+                           putStr "Strategies Loaded"
+    | otherwise          = putStr "Input invalid"
+                      
+
+checkStrategy :: String -> Bool
+checkStrategy "human"     = True
+checkStrategy "defensive" = True
+checkStrategy _           = False
+
+parseStrategy :: String -> Chooser
+parseStrategy "human"     = human
+parseStrategy "defensive" = defAI
 
 
-
-startNextTurn                       :: GameState -> IO ()
-startNextTurn boardState = do
-             
---Apply strategies
-  blackmove <- human (boardState) Normal Black
-  
-  whitemove <- return (Just [(4,4), (3,3)])
-  
-  newBoard <- return (GameState (if blackmove==Nothing then Passed else Played (head (fromJust blackmove), head (tail (fromJust blackmove))))
-                     (blackPen boardState)
-                     (if whitemove==Nothing then Passed else Played (head (fromJust whitemove), head (tail (fromJust whitemove))))
-                     (whitePen boardState)
-                     (replace2 (replace2 (theBoard boardState)
-                                                   ((fromJust blackmove) !! 1)
-                                                   (getFromBoard (theBoard boardState) ((fromJust blackmove) !! 0)))
-                                         ((fromJust blackmove) !! 0)
-                                         E))
-                     
-  
-  putStrLn (show $ newBoard)
-  
-  startNextTurn newBoard
-
-getInput :: IO String
-getInput = getLine 
-
---Could also GameState -> Bool, and extract data from the structure that is GameState	
---Basically the @ function assigns a name to a specific part of a bigger data type
---as below player is the name, whitePlayed is the data type inside GameState
---So, we're extracting the data from whitePlayed which is type Played and we only care about 
---the second tuple in the pair of tuples, and thus have named it s@ second tuble values
---It's unfinished at the moment as I wasn't sure of the format we as a group wanted to follow.
---Basically, options are GameState ->Bool, and extract the data, or
---GameState -> PlayType -> Player -> Played -> Bool
---I'm leaning extracting the data though, as that makes it more useful.
-isValid :: GameState -> PlayType -> Player -> Played -> Bool
-isValid GameState{theBoard = nBoard, whitePlayed = player@(Played (_, s@(d,3)) } Normal White move =
-
+nextStage :: GameState -> Chooser -> Chooser -> IO ()
+nextStage b s1 s2 = do
+                    
+                    move <- s1 b Normal Black
+                    move2 <- s2 b Normal White
+                    
+                    putStrLn "\nThe initial board:"
+                    print initBoard
+                    putStrLn "This is a description"
+                    
+                    putStrLn (show $ GameState (if move==Nothing
+                                                then Passed
+                                                else Played (head (fromJust move), head (tail (fromJust move))))
+                                                (blackPen initBoard)
+                                                (Passed)
+                                                (whitePen initBoard)
+                                                (replace2 (replace2 (theBoard initBoard)
+                                                                    ((fromJust move) !! 1)
+                                                                    (getFromBoard (theBoard initBoard) ((fromJust move) !! 0)))
+                                                          ((fromJust move) !! 0)
+                                                          E))
+                                                          
+                    putStr "Hello"
 
 ---2D list utility functions-------------------------------------------------------
 
