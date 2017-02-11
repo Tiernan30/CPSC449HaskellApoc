@@ -26,41 +26,86 @@ module ApocStrategyHuman (
 import ApocTools
 import System.IO
 
-{- | This is just a placeholder for the human strategy: it always chooses to play
-     (0,0) to (2,1).
--}
-getInput :: IO String
-getInput = getLine
-
-buildInput :: [Int] -> [(Int, Int)]
-buildInput list 
-   | (length list) == 4 = (list!!0, list!!1):(list!!2, list!!3):[]
-   | (length list) == 2 = (list!!0, list !!1):[]
-   | otherwise = []
-
-convertInput :: [Char] -> [Int]
-convertInput [] = []
-convertInput (x:[]) = if x `elem` ['0'..'9']
-                      then (read [x] :: Int):[]
-                      else []
-convertInput (x:xs) = if x `elem` ['0'..'9']
-                      then (read [x] :: Int):convertInput xs
-                      else convertInput xs
-
-
---Code Counts the number of valid inputs in a line
-countInputs :: [Char] -> Int
-countInputs [] = 0
-countInputs (x:[]) = if x `elem` ['0'..'9']
-                     then 1
-                     else 0
-countInputs (x:y:ys) = if x `elem` ['0'..'9'] && not (y `elem` ['0'..'9'])
-                       then 1 + countInputs (y:ys)
-                       else 0 + countInputs (y:ys)
- 
-
 human    :: Chooser
 human b Normal        c = do
-        userIn <- getLine
-        return (Just (buildInput(convertInput(userIn))))
-human b PawnPlacement c = return (Just [(2,2)])
+                          let x = (show c)
+                          putStr ("Enter the move coordinates for player " ++ x)
+                          let status = determineStatus Normal c
+                          putStrLn ( " in the form 'srcX srcY destX destY' [0 >= n >= 4, or just enter return for a 'pass' " ++ status)
+                          userIn <- getLine
+                          if (validInput userIn 4 || userIn == [])
+                          then return (returnIOMove (buildCoords Normal (buildInput userIn [])))
+                          else reprompt b Normal c
+human b PawnPlacement c = do
+                          let x = (show c)
+                          putStr ("Enter the move coordinates for player " ++ x)
+                          let status = determineStatus PawnPlacement c
+                          putStrLn ( " in the form 'destX destY' : [0 >= n >= 4] " ++ status)
+                          userIn <- getLine
+                          if (validInput userIn 2 || userIn == [])
+                          then return (returnIOMove (buildCoords PawnPlacement (buildInput userIn [])))
+                          else reprompt b PawnPlacement c
+
+reprompt :: GameState -> PlayType -> Player -> IO (Maybe [(Int,Int)])
+reprompt b Normal c        = do
+                             let x = (show c)
+                             putStr ("Enter the move coorindates for player " ++ x)
+                             let status = determineStatus Normal c
+                             putStrLn ( " in the form 'srcX srcY destX destY' [0 >= n >= 4, or just enter return for a 'pass' " ++ status)
+                             userIn <- getLine
+                             if (validInput userIn 4 || userIn == [])
+                             then return (returnIOMove (buildCoords Normal (buildInput userIn [])))
+                             else reprompt b Normal c
+reprompt b PawnPlacement c = do
+                             let x = (show c)
+                             putStr ("Enter the move coordinates for player " ++ x)
+                             let status = determineStatus PawnPlacement c
+                             putStrLn ( " in the form 'destX destY' : [0 >= n >= 4] " ++ status)
+                             userIn <- getLine
+                             if (validInput userIn 2 || userIn == [])
+                             then return (returnIOMove (buildCoords PawnPlacement (buildInput userIn [])))
+                             else reprompt b PawnPlacement c
+
+
+returnIOMove :: [(Int,Int)] -> (Maybe [(Int,Int)])
+returnIOMove [] = Nothing
+returnIOMove c  = Just c
+
+
+validInput :: [Char] -> Int -> Bool
+validInput list 0 = True
+validInput [] num = False
+validInput (x:xs) num  = if x `elem` ['0'..'4']
+                         then isStillNum xs (num-1)
+                         else if x == ' '
+                              then validInput xs num
+                              else False
+
+isStillNum :: [Char] -> Int -> Bool
+isStillNum [] 0       = True
+isStillNum (x:xs) 0   = if x `elem` ['0'..'9']
+                        then False
+                        else True
+isStillNum [] num     = False
+isStillNum (x:xs) num = if x `elem` ['0'..'9']
+                        then False
+                        else if x == ' ' 
+                             then validInput xs num
+                             else False
+   
+determineStatus :: PlayType -> Player -> String
+determineStatus Normal Black        = "B1:"
+determineStatus Normal White        = "W1:"
+determineStatus PawnPlacement Black = "B2:"
+determineStatus PawnPlacement White = "W2:"
+
+buildInput :: [Char] -> [Int] -> [Int]
+buildInput [] list     = list
+buildInput (x:xs) list = if x `elem` ['0'..'4']
+                          then buildInput xs (list ++ [(read [x] :: Int)])
+                          else buildInput xs list
+
+buildCoords :: PlayType -> [Int] -> [(Int,Int)]
+buildCoords play []            = []
+buildCoords Normal list        = (list!!0, list!!1) : (list!!2, list!!3) : []
+buildCoords PawnPlacement list = (list!!0, list!!1) : []
