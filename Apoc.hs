@@ -29,9 +29,7 @@ import System.IO.Unsafe
 import ApocTools
 import ApocStrategyHuman
 import DefensiveAI
-<<<<<<< HEAD
 import AggressiveAI
-=======
 import MoveParser
   
 ---2D list utility functions-------------------------------------------------------
@@ -46,7 +44,6 @@ replace xs n elem = let (ys,zs) = splitAt n xs
 -- | Replaces the (x,y)th element in a list of lists with a new element.
 replace2        :: [[a]] -> (Int,Int) -> a -> [[a]]
 replace2 xs (x,y) elem = replace xs y (replace (xs !! y) x elem)
->>>>>>> cbc4f1ce9266b9235c09c944fb3afb7a0310e3fd
 
 
 ---Main-------------------------------------------------------------

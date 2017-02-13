@@ -5,7 +5,7 @@ placePawnMParse
 ) where
 
 import ApocTools
-import AIFunction
+import ApocFunction
 import Data.Maybe
 import Data.List
 
