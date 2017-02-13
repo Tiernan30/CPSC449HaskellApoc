@@ -1,0 +1,6 @@
+# Don't commit haskell compiler files
+
+*.hi
+*.exe
+*.o
+.DS_Store

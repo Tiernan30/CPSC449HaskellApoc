@@ -2,7 +2,7 @@ module DefensiveAI (
 defAI
 ) where
 
-import AIFunction
+import ApocFunction
 import ApocTools
 
    

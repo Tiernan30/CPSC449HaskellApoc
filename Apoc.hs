@@ -32,6 +32,7 @@ import System.IO.Unsafe
 import ApocTools
 import ApocStrategyHuman
 import DefensiveAI
+import AggressiveAI
 
 
 ---Main-------------------------------------------------------------
@@ -59,6 +60,7 @@ interactiveMode args
                            putStr "The following strategies are available to be loaded in for play (strategies must be entered as displayed below) : \n"
                            putStrLn "  human"
                            putStrLn "  defensive"
+                           putStrLn "  aggressive"
                            putStrLn "Please choose a strategy for black player"
                            bStrat <- getLine
                            putStrLn "Please choose a strategy for white player"
@@ -81,11 +83,13 @@ interactiveMode args
 checkStrategy :: String -> Bool
 checkStrategy "human"     = True
 checkStrategy "defensive" = True
+checkStrategy "aggressive" = True
 checkStrategy _           = False
 
 parseStrategy :: String -> Chooser
 parseStrategy "human"     = human
 parseStrategy "defensive" = defAI
+parseStrategy "aggressive" = aggressiveAI
 
 
 nextStage :: GameState -> Chooser -> Chooser -> IO ()
