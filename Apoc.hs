@@ -29,7 +29,6 @@ import System.IO.Unsafe
 import ApocTools
 import ApocStrategyHuman
 import DefensiveAI
-import AggressiveAI
 import MoveParser
   
 ---2D list utility functions-------------------------------------------------------
@@ -56,10 +55,11 @@ main = interactiveMode (unsafePerformIO getArgs)
      2. run from the command line by calling this function with the value from (getArgs)
 -}
 
-
-interactiveMode :: [String] -> IO()
+-- | The interactiveMode, used to do initial IO, handling the launch of the game whether it has 2 appropriate arguements, or needs to prompt for them.
+interactiveMode :: [String] -- ^ The List of Strings arguement.
+                   -> IO()  -- ^ The IO output, either a stirng or the initial board state.
 interactiveMode args 
-    | args == []         = do
+    | args == []         = do  -- $interactiveDoc 
                            putStrLn "---------------------------------Launching Interactive Mode---------------------------------"
                            putStr "Apocalypse is a chess variant game that is played on a 5x5 board, each player starts with 2 knights and 5 pawns. "
                            putStr "Players move at the same time each turn. If two knights try to take one another, then the knights both simultaneously "
@@ -69,7 +69,6 @@ interactiveMode args
                            putStr "The following strategies are available to be loaded in for play (strategies must be entered as displayed below) : \n"
                            putStrLn "  human"
                            putStrLn "  defensive"
-                           putStrLn "  aggressive"
                            putStrLn "Please choose a strategy for black player"
                            bStrat <- getLine
                            putStrLn "Please choose a strategy for white player"
@@ -88,20 +87,31 @@ interactiveMode args
                            putStr "Strategies Loaded"
     | otherwise          = putStrLn "Invalid strategies selected, please select from the following: \n  human \n  defensive"
                       
+-- $interactiveDoc
+-- This block is for interactiveMode. If there are no args, it's a long series of printed strings followed by a check to see if the 
+-- arguements obtained from user input are valid or not.  If so, starts the next (first) turn of the game with initBoard and the chosen strategies.
+-- If there are 2 arguements when it is called, it checks if they are both valid, if not it prints the invalid message, if so it starts the next(first) turn with initBoard and the chosen strategies.
+-- If there are more or less than two arguements, the invalid message is printed and the program ends $interactiveDoc.
 
-checkStrategy :: String -> Bool
-checkStrategy "human"     = True
-checkStrategy "defensive" = True
-checkStrategy "aggressive" = True
-checkStrategy _           = False
+-- | Function to check if a given strategy is valid
+checkStrategy :: String -- ^ The String argument
+              -> Bool   -- ^ The result as a Bool
+checkStrategy "human"     = True  -- ^ if the string reads "human" return True
+checkStrategy "defensive" = True  -- ^ if the string reads "defensive" return True
+checkStrategy _           = False -- ^ anything else return False
 
-parseStrategy :: String -> Chooser
-parseStrategy "human"     = human
-parseStrategy "defensive" = defAI
-parseStrategy "aggressive" = aggressiveAI
+-- | The function to select a chooser based on the given string 
+parseStrategy :: String  -- ^ The string argument
+              -> Chooser -- ^ The result as a chooser
+parseStrategy "human"     = human -- ^ if the string is "human" return the human chooser
+parseStrategy "defensive" = defAI -- ^ if the string is "defensive" return the defAI chooser
 
 
-startNextTurn :: GameState -> Chooser -> Chooser -> IO ()
+-- | The function to call the game "loop".
+startNextTurn :: GameState -- ^ The GameState arguement
+              -> Chooser   -- ^ The Chooser arguement for the black player
+			  -> Chooser   -- ^ The Chooser arguement for the white player
+			  -> IO ()     -- ^ The next GameState + updated game as output is returned
 startNextTurn currentstate blackstrategy whitestrategy = do
   
   let movetypes = getPlayTypes currentstate Black White
@@ -262,32 +272,50 @@ getPieceRow (c:cs) t
     | otherwise = 1 + getPieceRow cs t
     
 
---Apply movement functions
-    
-pawnPlace :: [[Cell]] -> [(Int, Int)] -> [[Cell]]
+-- | Function for pawn placement
+pawnPlace :: [[Cell]]     -- ^ The list of list of Cells arguement (the game board)
+          -> [(Int, Int)] -- ^ The list of tuples of ints argument (the coordinates)
+		  -> [[Cell]]     -- ^ The updated board is returned as output
 pawnPlace b [(x1, y1), (x2,y2)] = (replace2 (replace2 b (x2, y2) (getFromBoard b (x1,y1))
                                             (x1,y1)
                                             E))
-    
-twoMovesC :: [[Cell]] -> [(Int, Int)] -> [(Int, Int)] -> [[Cell]]
+-- | The function to handle moves when a collision occurs, and both pieces are discarded
+twoMovesC :: [[Cell]]     -- ^ The board arguement
+          -> [(Int, Int)] -- ^ The first set of coordinates arguement (the second tuple can be anything because it will be the same for both due to other checks.)
+		  -> [(Int, Int)] -- ^ The second set of coordinates argument
+		  -> [[Cell]]     -- ^ The returned, updated board
 twoMovesC b [(a1, b1), _ ] [(x1,y1), _]   = (replace2 (replace2 b (a1,b1) E)
                                                                 (x1,y1)
                                                                 E)
 
---Checks whether two moves clash
-checkCollision :: (Int, Int) -> (Int, Int) -> Bool
+-- | Function to check whether to destination moves will result in a collision.
+checkCollision :: (Int, Int)  -- ^ The First coordinate arguement
+               -> (Int, Int)  -- ^ The Second coordinate arguement
+			   -> Bool        -- ^ The result as a bool
 checkCollision (x1, y1) (x2, y2) = if x1 == x2 && y1 == y2 then True
                                            else False
                                            
---checks if collision occurs
-checkClash :: [[Cell]] -> [(Int, Int)] -> [(Int, Int)] -> [[Cell]]
+-- | Function to check what to do if a collision does occur
+checkClash :: [[Cell]]     -- ^ The board arguement
+           -> [(Int, Int)] -- ^ The first set of coordinates argument
+		   -> [(Int, Int)] -- ^ The second set of coordinates argument
+		   -> [[Cell]]     -- ^ The updated board returned
+-- $clashDoc.		   
 checkClash b [(a1, b1), (a2,b2)] [(x1, y1), (x2, y2)] = if (checkCollision (a2, b2) (x2, y2)) == True
                                     then threeMoves b [(a1, b1), (a2,b2)] [(x1, y1), (x2, y2)]
                                     else fourMoves b [(a1, b1), (a2,b2)] [(x1, y1), (x2, y2)]
+-- $clashDoc                  
+-- This section takes the two tuples of coordinates (black player source move and destination move and white player source and destination)
+-- if the collision check returns true, then use three moves (as 2 moves will be E, the last will be the winning piece) otherwise
+-- use fourMoves as there was no collision #clashDoc.                
                                     
-                                    
---if collision occurs, handle the collision, if they're both pieces are pawns or nights, it's a loss clash, so twoMoves
-threeMoves :: [[Cell]] -> [(Int, Int)] -> [(Int, Int)] -> [[Cell]]
+-- | Function to check if collision occurs, handle the collision, if both pieces are pawns or knights, it's a loss clash, so twoMoves, otherwise update the board.
+threeMoves :: [[Cell]]     -- ^ The Board arguement
+           -> [(Int, Int)] -- ^ The first set of coordinates argument
+		   -> [(Int, Int)] -- ^ The second set of coordinates argument
+		   -> [[Cell]]     -- ^ The updated board returned
+
+-- $threeMovesDoc
 threeMoves b [(a1, b1), (a2,b2)] [(x1, y1), (x2, y2)] = if( getFromBoard b (a1, b1) == WP && getFromBoard b (x1, y1) == BP 
                                    || getFromBoard b (a1, b1) == WK && getFromBoard b (x1, y1) == BK)                                                    
                                    then twoMovesC b [(a1, b1), (a2,b2)] [(x1, y1), (x2, y2)] 
@@ -307,8 +335,17 @@ threeMoves b [(a1, b1), (a2,b2)] [(x1, y1), (x2, y2)] = if( getFromBoard b (a1, 
                                                               E) 
                                                   (a1, b1) 
                                                    E)))                                     
-    
-fourMoves :: [[Cell]] -> [(Int, Int)] -> [(Int, Int)] -> [[Cell]]
+-- $threeMovesDoc
+-- This block takes the black/white player source and destination coordinates, and checks which pieces are at the source.
+-- If they are the same, calls twoMoves.  If they are different, then check to see which of them is a Knight and update the board $threeMovesDoc.
+
+-- | The function to update the board for a normal turn when no clash occurs.
+fourMoves :: [[Cell]]     -- ^ The board argument
+          -> [(Int, Int)] -- ^ The first set of coordinates argument
+		  -> [(Int, Int)] -- ^ The second set of coordinates argument
+		  -> [[Cell]]     -- ^ The updated board returned
+		  
+-- $fourMovesDoc		  
 fourMoves b [(a1, b1), (a2,b2)] [(x1, y1), (x2, y2)] = (replace2 (replace2 (replace2 (replace2 (b) 
                                                                                                (x2, y2) 
                                                                                                (getFromBoard b (x1,y1)))
@@ -318,6 +355,5 @@ fourMoves b [(a1, b1), (a2,b2)] [(x1, y1), (x2, y2)] = (replace2 (replace2 (repl
                                                                             (getFromBoard b (a1,b1)))
                                                                  (a1, b1) 
                                                                  E)    
-    
-
-
+-- $fourMovesDoc
+-- This block takes the black and white source and destination coordinates, then updates the board appropriately $fourMovesDoc.
